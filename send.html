@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Send Print Files – PrintCraft Studio</title>
+  <link rel="stylesheet" href="send.css" />
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+</head>
+<body>
+
+  <div class="page">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">Print<span>Craft</span> Studio</div>
+      <a href="index.html" class="btn-back">← Home</a>
+    </div>
+
+    <!-- Card -->
+    <div class="card">
+      <div class="card-logo">Print<span>Craft</span> Studio</div>
+      <div class="card-sub">Professional Printing</div>
+      <div class="card-intro">
+        Upload your files and we'll handle the printing.
+        Add notes for paper type, size, copies, etc.
+      </div>
+
+      <!-- Drop Zone -->
+      <div class="drop-zone" id="drop-zone"
+        ondragover="event.preventDefault();this.classList.add('over')"
+        ondragleave="this.classList.remove('over')"
+        ondrop="onDrop(event)">
+        <input type="file" multiple onchange="onFileInput(event)" />
+        <div class="drop-icon">📂</div>
+        <div class="drop-title">Tap or drag files here</div>
+        <div class="drop-desc">PDF, Word, Excel, Images — any format</div>
+      </div>
+
+      <!-- Selected Files -->
+      <div class="sel-files" id="sel-files"></div>
+
+      <!-- Form -->
+      <div class="form">
+        <div class="field">
+          <label>Your Name</label>
+          <input type="text" id="cust-name" placeholder="e.g. Maria Santos" />
+        </div>
+        <div class="field">
+          <label>Print Notes <span class="opt">(optional)</span></label>
+          <textarea id="cust-notes" placeholder="e.g. A4, colored, 2 copies, glossy paper…"></textarea>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-wrap" id="progress-wrap">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-label" id="progress-label"></div>
+
+        <button class="btn-send" id="send-btn" onclick="submitFiles()">
+          Send Files 🚀
+        </button>
+      </div>
+
+      <!-- Success -->
+      <div class="success-banner" id="success-banner">
+        <div class="s-icon">✅</div>
+        <h3>Files Sent Successfully!</h3>
+        <p>We received your files and will start processing soon. Thank you!</p>
+        <button class="btn-again" onclick="resetForm()">Send More Files</button>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      &copy; 2024 PrintCraft Studio · All rights reserved
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="send.js"></script>
+</body>
+</html>
