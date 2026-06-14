@@ -176,19 +176,25 @@ function renderFiles(subs) {
 }
 
 // ══════════════════════════════════════════
-//  DASHBOARD – DOWNLOAD FILE
+//  DASHBOARD – DOWNLOAD FILE (from Cloudinary URL)
 // ══════════════════════════════════════════
 function dlFile(subIdx, fileIdx) {
   const f = currentSubs[subIdx].files[fileIdx];
+  // Cloudinary: force download with fl_attachment flag
+  let url = f.url;
+  if (url && url.includes('/upload/') && !url.includes('fl_attachment')) {
+    url = url.replace('/upload/', '/upload/fl_attachment/');
+  }
   const a = document.createElement('a');
-  a.href     = f.data; // base64 data URL
+  a.href     = url;
+  a.target   = '_blank';
   a.download = f.name;
   a.click();
   toast('⬇ Downloading ' + f.name);
 }
 
 // ══════════════════════════════════════════
-//  DASHBOARD – DELETE FILE
+//  DASHBOARD – DELETE FILE (Firestore record only)
 // ══════════════════════════════════════════
 function delFile(docId, fileIdx) {
   db.collection('submissions').doc(docId).get().then(doc => {

@@ -15,10 +15,14 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 // ══════════════════════════════════════════
-//  CONSTANTS
+//  CLOUDINARY CONFIG
 // ══════════════════════════════════════════
-// Firestore documents max out at ~1MB. Keep margin for metadata.
-const MAX_FILE_SIZE = 700 * 1024; // 700 KB per file
+const CLOUDINARY_CLOUD_NAME = 'ddgkkpx05';
+const CLOUDINARY_PRESET     = 'printcraft';
+const CLOUDINARY_URL        = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
+
+// Cloudinary free tier comfortably handles large files; keep a sane cap
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB per file
 
 // ══════════════════════════════════════════
 //  HELPERS
@@ -123,19 +127,54 @@ function setProgress(percent, label) {
 }
 
 // ══════════════════════════════════════════
-//  CONVERT FILE TO BASE64
+//  UPLOAD ONE FILE TO CLOUDINARY
 // ══════════════════════════════════════════
-function fileToBase64(file) {
+function uploadToCloudinary(file, onProgress) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result); // data:mime;base64,xxxx
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_PRESET);
+    // Keep original filename visible in Cloudinary
+    formData.append('use_filename', 'true');
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', CLOUDINARY_URL);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(e.loaded / e.total);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const res = JSON.parse(xhr.responseText);
+          resolve({
+            url: res.secure_url,
+            publicId: res.public_id,
+            resourceType: res.resource_type
+          });
+        } catch (e) {
+          reject(new Error('Invalid response from Cloudinary'));
+        }
+      } else {
+        let msg = 'Upload failed (status ' + xhr.status + ')';
+        try {
+          const res = JSON.parse(xhr.responseText);
+          if (res.error && res.error.message) msg = res.error.message;
+        } catch (e) {}
+        reject(new Error(msg));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.send(formData);
   });
 }
 
 // ══════════════════════════════════════════
-//  SUBMIT TO FIRESTORE
+//  SUBMIT — UPLOAD FILES THEN SAVE TO FIRESTORE
 // ══════════════════════════════════════════
 function submitFiles() {
   if (!selectedFiles.length) {
@@ -150,25 +189,30 @@ function submitFiles() {
 
   btn.textContent = 'Uploading…';
   btn.disabled    = true;
-  setProgress(0, `Processing 0 of ${total} files…`);
+  setProgress(0, `Uploading 0 of ${total} files…`);
 
   let done = 0;
   const fileDataResults = [];
 
-  // Process files one at a time
+  // Upload sequentially for reliable progress + lower memory use
   let chain = Promise.resolve();
   selectedFiles.forEach((file) => {
     chain = chain.then(() => {
-      return fileToBase64(file).then(base64 => {
+      return uploadToCloudinary(file, (frac) => {
+        const overall = Math.round(((done + frac) / total) * 100);
+        setProgress(overall, `Uploading ${done + 1} of ${total} files… (${overall}%)`);
+      }).then(result => {
         fileDataResults.push({
           name: file.name,
           size: file.size,
           type: file.type,
-          data: base64
+          url: result.url,
+          publicId: result.publicId,
+          resourceType: result.resourceType
         });
         done++;
         const pct = Math.round((done / total) * 100);
-        setProgress(pct, `Processing ${done} of ${total} files… (${pct}%)`);
+        setProgress(pct, `Uploaded ${done} of ${total} files… (${pct}%)`);
       });
     });
   });
@@ -202,7 +246,7 @@ function submitFiles() {
       btn.textContent = 'Send Files 🚀';
       btn.disabled    = false;
       setProgress(null);
-      toast('❌ Failed: ' + (err.message || 'Check your connection and Firestore rules'));
+      toast('❌ Failed: ' + (err.message || 'Please try again'));
     });
 }
 
