@@ -33,13 +33,6 @@ function show(page) {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  if (location.hash === '#send') show('customer');
-});
-window.addEventListener('hashchange', () => {
-  if (location.hash === '#send') show('customer');
-});
-
 // ══════════════════════════════════════════
 //  AUTH
 // ══════════════════════════════════════════

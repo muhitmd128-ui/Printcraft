@@ -25,7 +25,7 @@
         <div class="card-title">Owner Dashboard</div>
         <div class="card-desc">Manage orders &amp; downloads</div>
       </div>
-      <div class="card" onclick="show('customer')">
+      <div class="card" onclick="window.location.href='send.html'">
         <div class="card-icon">📤</div>
         <div class="card-title">Send Print Files</div>
         <div class="card-desc">Upload files for printing</div>
@@ -118,52 +118,6 @@
             <button class="btn-dark" onclick="copyURL()">📋 Copy URL</button>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══════════════ CUSTOMER ═══════════════ -->
-  <div id="pg-customer" class="page">
-    <div class="cust-card">
-      <div class="cust-logo">Sha<span>rify</span></div>
-      <div class="cust-sub">Professional Printing</div>
-      <div class="cust-intro">
-        Upload your files and we'll handle the printing.
-        Add notes for paper type, size, copies, etc.
-      </div>
-
-      <div class="drop-zone" id="drop-zone"
-        ondragover="event.preventDefault();this.classList.add('over')"
-        ondragleave="this.classList.remove('over')"
-        ondrop="onDrop(event)">
-        <input type="file" multiple onchange="onFileInput(event)" />
-        <div class="drop-icon">📂</div>
-        <div class="drop-title">Tap or drag files here</div>
-        <div class="drop-desc">PDF, Word, Excel, Images — any format</div>
-      </div>
-
-      <div class="sel-files" id="sel-files"></div>
-
-      <div style="margin-top:20px;">
-        <div class="field">
-          <label>Your Name</label>
-          <input type="text" id="cust-name" placeholder="e.g. Maria Santos" />
-        </div>
-        <div class="field">
-          <label>Print Notes <span style="font-weight:400;color:#aaa;">(optional)</span></label>
-          <textarea id="cust-notes" placeholder="e.g. A4, colored, 2 copies, glossy paper…"></textarea>
-        </div>
-        <button class="btn-red" id="send-btn" onclick="submitFiles()">Send Files 🚀</button>
-      </div>
-
-      <div class="success-banner" id="success-banner">
-        <div class="s-icon">✅</div>
-        <h3>Files Sent Successfully!</h3>
-        <p>We received your files and will start processing soon. Thank you!</p>
-      </div>
-
-      <div style="text-align:center;margin-top:22px;">
-        <button class="btn-ghost" onclick="show('landing')">Back to Home</button>
       </div>
     </div>
   </div>
