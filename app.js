@@ -253,7 +253,7 @@ function downloadQR() {
   const canvas = document.querySelector('#qr-render canvas');
   if (!canvas) { toast('⚠ Open the QR Code tab first'); return; }
   const a    = document.createElement('a');
-  a.download = 'printcraft-qr.png';
+  a.download = 'sharify-qr.png';
   a.href     = canvas.toDataURL('image/png');
   a.click();
   toast('✓ QR Code downloaded!');
