@@ -134,8 +134,6 @@ function uploadToCloudinary(file, onProgress) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_PRESET);
-    // Keep original filename visible in Cloudinary
-    formData.append('use_filename', 'true');
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', CLOUDINARY_URL);
