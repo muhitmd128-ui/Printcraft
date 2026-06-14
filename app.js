@@ -12,15 +12,14 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-const db      = firebase.firestore();
-const storage = firebase.storage();
+const db = firebase.firestore();
 
 // ══════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════
 const OWNER_USER   = 'owner';
 const OWNER_PASS   = 'print2024';
-const CUSTOMER_URL = 'https://muhitmd128-ui.github.io/Printcraft/#send';
+const CUSTOMER_URL = 'https://muhitmd128-ui.github.io/Printcraft/send.html';
 
 // ══════════════════════════════════════════
 //  ROUTING
@@ -100,8 +99,10 @@ function toast(msg) {
 }
 
 // ══════════════════════════════════════════
-//  DASHBOARD – LOAD FROM FIREBASE
+//  DASHBOARD – LOAD FROM FIRESTORE
 // ══════════════════════════════════════════
+let currentSubs = [];
+
 function loadDashboard() {
   const list = document.getElementById('files-list');
   list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div>Loading files…</div></div>';
@@ -110,14 +111,14 @@ function loadDashboard() {
     .orderBy('date', 'desc')
     .get()
     .then(snapshot => {
-      const subs = [];
-      snapshot.forEach(doc => subs.push({ id: doc.id, ...doc.data() }));
-      renderStats(subs);
-      renderFiles(subs);
+      currentSubs = [];
+      snapshot.forEach(doc => currentSubs.push({ id: doc.id, ...doc.data() }));
+      renderStats(currentSubs);
+      renderFiles(currentSubs);
     })
     .catch(err => {
       console.error(err);
-      list.innerHTML = '<div class="empty"><div class="empty-icon">❌</div><div>Failed to load. Check Firebase rules.</div></div>';
+      list.innerHTML = '<div class="empty"><div class="empty-icon">❌</div><div>Failed to load. Check Firestore rules.</div></div>';
     });
 }
 
@@ -149,7 +150,7 @@ function renderFiles(subs) {
   }
 
   let html = '';
-  subs.forEach(sub => {
+  subs.forEach((sub, si) => {
     (sub.files || []).forEach((f, fi) => {
       html += `
         <div class="file-row">
@@ -164,7 +165,7 @@ function renderFiles(subs) {
             </div>
           </div>
           <div class="file-actions">
-            <button class="btn-sm-red"   onclick="dlFile('${esc(f.url)}','${esc(f.name)}')">⬇ Download</button>
+            <button class="btn-sm-red"   onclick="dlFile(${si},${fi})">⬇ Download</button>
             <button class="btn-sm-ghost" onclick="delFile('${sub.id}',${fi})">✕</button>
           </div>
         </div>`;
@@ -177,13 +178,13 @@ function renderFiles(subs) {
 // ══════════════════════════════════════════
 //  DASHBOARD – DOWNLOAD FILE
 // ══════════════════════════════════════════
-function dlFile(url, name) {
-  const a  = document.createElement('a');
-  a.href   = url;
-  a.target = '_blank';
-  a.download = name;
+function dlFile(subIdx, fileIdx) {
+  const f = currentSubs[subIdx].files[fileIdx];
+  const a = document.createElement('a');
+  a.href     = f.data; // base64 data URL
+  a.download = f.name;
   a.click();
-  toast('⬇ Downloading ' + name);
+  toast('⬇ Downloading ' + f.name);
 }
 
 // ══════════════════════════════════════════
@@ -194,18 +195,9 @@ function delFile(docId, fileIdx) {
     if (!doc.exists) return;
     const data  = doc.data();
     const files = data.files || [];
-    const file  = files[fileIdx];
-
-    // Delete from Storage
-    if (file && file.storagePath) {
-      storage.ref(file.storagePath).delete().catch(() => {});
-    }
-
-    // Remove from array
     files.splice(fileIdx, 1);
 
     if (!files.length) {
-      // Delete entire doc if no files left
       return db.collection('submissions').doc(docId).delete();
     } else {
       return db.collection('submissions').doc(docId).update({ files });
@@ -265,103 +257,4 @@ function copyURL() {
   navigator.clipboard.writeText(CUSTOMER_URL)
     .then(() => toast('✓ URL copied to clipboard!'))
     .catch(() => toast('⚠ Could not copy — copy it manually'));
-}
-
-// ══════════════════════════════════════════
-//  CUSTOMER – FILE SELECTION
-// ══════════════════════════════════════════
-let selectedFiles = [];
-
-function onDrop(e) {
-  e.preventDefault();
-  document.getElementById('drop-zone').classList.remove('over');
-  addFiles(Array.from(e.dataTransfer.files));
-}
-
-function onFileInput(e) {
-  addFiles(Array.from(e.target.files));
-  e.target.value = '';
-}
-
-function addFiles(newFiles) {
-  newFiles.forEach(f => {
-    const exists = selectedFiles.find(x => x.name === f.name && x.size === f.size);
-    if (!exists) selectedFiles.push(f);
-  });
-  renderSelected();
-}
-
-function removeFile(i) {
-  selectedFiles.splice(i, 1);
-  renderSelected();
-}
-
-function renderSelected() {
-  const c = document.getElementById('sel-files');
-  if (!selectedFiles.length) { c.innerHTML = ''; return; }
-  c.innerHTML = selectedFiles.map((f, i) => `
-    <div class="sel-file">
-      <span>${fileIcon(f.name)}</span>
-      <span class="sel-file-name">${esc(f.name)}</span>
-      <span class="sel-file-size">${fmtBytes(f.size)}</span>
-      <span class="sel-remove" onclick="removeFile(${i})">✕</span>
-    </div>`).join('');
-}
-
-// ══════════════════════════════════════════
-//  CUSTOMER – SUBMIT TO FIREBASE
-// ══════════════════════════════════════════
-function submitFiles() {
-  if (!selectedFiles.length) {
-    toast('⚠ Please select at least one file');
-    return;
-  }
-
-  const btn       = document.getElementById('send-btn');
-  const custName  = document.getElementById('cust-name').value.trim() || 'Anonymous';
-  const custNotes = document.getElementById('cust-notes').value.trim();
-  btn.textContent = 'Uploading…';
-  btn.disabled    = true;
-
-  const uploadPromises = selectedFiles.map(file => {
-    const path = `submissions/${Date.now()}_${file.name}`;
-    const ref  = storage.ref(path);
-    return ref.put(file).then(snap => snap.ref.getDownloadURL()).then(url => ({
-      name:        file.name,
-      size:        file.size,
-      type:        file.type,
-      url:         url,
-      storagePath: path
-    }));
-  });
-
-  Promise.all(uploadPromises)
-    .then(fileData => {
-      return db.collection('submissions').add({
-        name:  custName,
-        notes: custNotes,
-        date:  new Date().toISOString(),
-        files: fileData
-      });
-    })
-    .then(() => {
-      // Reset form
-      selectedFiles = [];
-      renderSelected();
-      document.getElementById('cust-name').value  = '';
-      document.getElementById('cust-notes').value = '';
-      btn.textContent = 'Send Files 🚀';
-      btn.disabled    = false;
-
-      const banner = document.getElementById('success-banner');
-      banner.style.display = 'block';
-      setTimeout(() => { banner.style.display = 'none'; }, 7000);
-      toast('✅ Files sent successfully!');
-    })
-    .catch(err => {
-      console.error(err);
-      btn.textContent = 'Send Files 🚀';
-      btn.disabled    = false;
-      toast('❌ Upload failed. Please try again.');
-    });
 }

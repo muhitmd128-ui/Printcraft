@@ -12,8 +12,13 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-const db      = firebase.firestore();
-const storage = firebase.storage();
+const db = firebase.firestore();
+
+// ══════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════
+// Firestore documents max out at ~1MB. Keep margin for metadata.
+const MAX_FILE_SIZE = 700 * 1024; // 700 KB per file
 
 // ══════════════════════════════════════════
 //  HELPERS
@@ -70,6 +75,10 @@ function onFileInput(e) {
 
 function addFiles(newFiles) {
   newFiles.forEach(f => {
+    if (f.size > MAX_FILE_SIZE) {
+      toast(`⚠ "${f.name}" is too large (max ${fmtBytes(MAX_FILE_SIZE)}). Skipped.`);
+      return;
+    }
     const exists = selectedFiles.find(x => x.name === f.name && x.size === f.size);
     if (!exists) selectedFiles.push(f);
   });
@@ -114,7 +123,19 @@ function setProgress(percent, label) {
 }
 
 // ══════════════════════════════════════════
-//  SUBMIT TO FIREBASE
+//  CONVERT FILE TO BASE64
+// ══════════════════════════════════════════
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result); // data:mime;base64,xxxx
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ══════════════════════════════════════════
+//  SUBMIT TO FIRESTORE
 // ══════════════════════════════════════════
 function submitFiles() {
   if (!selectedFiles.length) {
@@ -125,62 +146,36 @@ function submitFiles() {
   const btn       = document.getElementById('send-btn');
   const custName  = document.getElementById('cust-name').value.trim() || 'Anonymous';
   const custNotes = document.getElementById('cust-notes').value.trim();
+  const total     = selectedFiles.length;
 
   btn.textContent = 'Uploading…';
   btn.disabled    = true;
-  setProgress(0, `Uploading 0 of ${selectedFiles.length} files…`);
+  setProgress(0, `Processing 0 of ${total} files…`);
 
-  let completed = 0;
-  const total = selectedFiles.length;
-  const fileDataResults = new Array(total);
+  let done = 0;
+  const fileDataResults = [];
 
-  // Upload each file individually with its own task so we can track progress
-  // and so one failure doesn't silently hang everything.
-  const uploadOne = (file, idx) => {
-    return new Promise((resolve, reject) => {
-      const path = `submissions/${Date.now()}_${idx}_${file.name}`;
-      const ref  = storage.ref(path);
-      const task = ref.put(file);
-
-      task.on('state_changed',
-        snapshot => {
-          const pct = total > 0
-            ? Math.round(((completed + snapshot.bytesTransferred / snapshot.totalBytes) / total) * 100)
-            : 0;
-          setProgress(pct, `Uploading ${completed} of ${total} files… (${pct}%)`);
-        },
-        error => {
-          console.error('Upload error for', file.name, error);
-          reject(error);
-        },
-        () => {
-          task.snapshot.ref.getDownloadURL().then(url => {
-            completed++;
-            fileDataResults[idx] = {
-              name: file.name,
-              size: file.size,
-              type: file.type,
-              url: url,
-              storagePath: path
-            };
-            const pct = Math.round((completed / total) * 100);
-            setProgress(pct, `Uploading ${completed} of ${total} files… (${pct}%)`);
-            resolve();
-          }).catch(reject);
-        }
-      );
-    });
-  };
-
-  // Run uploads sequentially for reliability on slow connections
+  // Process files one at a time
   let chain = Promise.resolve();
-  selectedFiles.forEach((file, idx) => {
-    chain = chain.then(() => uploadOne(file, idx));
+  selectedFiles.forEach((file) => {
+    chain = chain.then(() => {
+      return fileToBase64(file).then(base64 => {
+        fileDataResults.push({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          data: base64
+        });
+        done++;
+        const pct = Math.round((done / total) * 100);
+        setProgress(pct, `Processing ${done} of ${total} files… (${pct}%)`);
+      });
+    });
   });
 
   chain
     .then(() => {
-      setProgress(100, 'Saving order details…');
+      setProgress(100, 'Saving order…');
       return db.collection('submissions').add({
         name:  custName,
         notes: custNotes,
@@ -207,7 +202,7 @@ function submitFiles() {
       btn.textContent = 'Send Files 🚀';
       btn.disabled    = false;
       setProgress(null);
-      toast('❌ Upload failed: ' + (err.message || 'Check your connection and Firebase rules'));
+      toast('❌ Failed: ' + (err.message || 'Check your connection and Firestore rules'));
     });
 }
 
